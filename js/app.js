@@ -4425,21 +4425,30 @@
         if (toTop) window.addEventListener("scroll", (e => {
             if (window.pageYOffset > 100) toTop.classList.add("top-btn_active"); else toTop.classList.remove("top-btn_active");
         }));
-        let busketDelBtn;
-        function addToBasket(id, imgUrl, name, description, price, count = 1) {
+        let busketDelBtn = document.querySelectorAll(`.popup-basket__del-btn`);
+        let countInp = document.querySelectorAll(`.popup-basket__count`);
+        let orderBtns = document.querySelectorAll(`.popup-basket__btn`);
+        function addToBasket(id, imgUrl, name, description, price, count = 1, order = "Не замовлено") {
             const basket = document.querySelector(".popup-basket__wrapper");
+            const isOrder = order == "Очікує підтвердження";
+            const confirmed = order == "Підтверджено";
             if (document.getElementById(id)) return;
-            const content = `\n    <div id="${id}" class="popup-basket__slide swiper-slide">\n      <div class="popup-basket__picture">\n        <img src="${imgUrl}" alt="${name}" class="popup-basket__picture_img">\n      </div>\n      <div class="popup-basket__content">\n        <h3 class="popup-basket__title">${name}</h3>\n        <p class="popup-basket__subtitle">${description}</p>\n        <p class="popup-basket__price">${price} грн</p>\n        <div class="popup-basket__row">\n          <h5 class="popup-basket__count-label">Кількість шт.</h5>\n          <input type="number" min="1" value="${count}" class="popup-basket__count">\n        </div>\n        <button type="button" class="main-button popup-basket__btn">Замовити</button>\n        <button type="button" class="popup-basket__del-btn"><i class="fa-solid fa-trash"></i></button>\n      </div>\n    </div>\n  `;
+            const eventClass = order == "Відміна" ? "clear-order" : confirmed ? "confirmed" : "";
+            const content = `\n    <div id="${id}" class="popup-basket__slide swiper-slide ${eventClass}">\n      <div class="popup-basket__picture">\n        <img src="${imgUrl}" alt="${name}" class="popup-basket__picture_img">\n      </div>\n      <div class="popup-basket__content">\n        <h3 class="popup-basket__title">${name}</h3>\n        <p class="popup-basket__subtitle">${description}</p>\n        <p class="popup-basket__price">${price * count} грн</p>\n        <div class="popup-basket__row">\n          <h5 class="popup-basket__count-label">Кількість шт.</h5>\n          <input type="number" min="1" value="${count}" ${confirmed ? "disabled" : ""} class="popup-basket__count">\n        </div>\n        <button class="main-button popup-basket__btn ${confirmed || isOrder ? "hide" : ""}">Замовити</button>\n        <button class="main-button popup-basket__btn popup-basket__btn-clear  ${confirmed || !isOrder ? "hide" : ""}">Відмінити замовлення</button>\n        <button class="popup-basket__del-btn"><i class="fa-solid fa-trash"></i></button>\n      </div>\n    </div>\n  `;
             basket.innerHTML += content;
-            const countInp = document.querySelector(`#${id} .popup-basket__count`);
-            countInp.addEventListener("input", (e => {
-                count = e.target.value;
-                writeUserData(`users/${userID}/Корзина/`, `${name}/Кількість`, `${count} шт.`);
-            }));
-            busketDelBtn = document.querySelectorAll(`#${id} .popup-basket__del-btn`);
-            busketDelBtn.forEach((btn => {
-                btn.addEventListener("click", (e => {
-                    removeFromBasket(id, name);
+            countInp = document.querySelectorAll(`.popup-basket__count`);
+            countInp.forEach((cnt => {
+                cnt.addEventListener("input", (e => {
+                    const id = e.target.offsetParent.id;
+                    const name = document.querySelector(`#${id} h3`).outerText;
+                    let priceVal = document.querySelector(`#${id} .popup-basket__price`);
+                    count = +cnt.value;
+                    priceVal.innerHTML = count * price + " грн.";
+                    if (name) {
+                        writeUserData(`users/${userID}/Корзина/`, `${name}/Кількість`, `${count} шт.`);
+                        writeUserData(`users/${userID}/Корзина/`, `${name}/Ціна`, `${price} грн`);
+                        writeUserData(`users/${userID}/Корзина/`, `${name}/Загальна ціна`, `${price * count} грн`);
+                    }
                 }));
             }));
             writeUserData(`users/${userID}/Корзина/`, `${name}`, {
@@ -4448,18 +4457,51 @@
                 "Опис товару": description,
                 Ціна: `${price} грн`,
                 Кількість: `${count} шт.`,
-                Замовлення: "Ще не замовляв",
+                "Загальна ціна": `${price * count} грн`,
+                Замовлення: order,
                 id
             });
+            busketDelBtn = document.querySelectorAll(`.popup-basket__del-btn`);
+            busketDelBtn.forEach((btn => {
+                btn.addEventListener("click", (e => {
+                    const id = btn.offsetParent.id;
+                    const name = document.querySelector(`#${id} h3`).outerText;
+                    if (name && id) removeFromBasket(id, name);
+                }));
+            }));
+            orderBtns = document.querySelectorAll(`.popup-basket__btn`);
+            orderBtns.forEach((orderBtn => {
+                orderBtn.addEventListener("click", (() => {
+                    const id = orderBtn.offsetParent.id;
+                    const popup = document.getElementById(id);
+                    console.log(orderBtn.offsetParent.classList);
+                    let btns = document.querySelectorAll(`#${id} .popup-basket__btn`);
+                    document.querySelector(`#${id} .popup-basket__btn-clear`);
+                    btns.forEach((btn => btn.classList.toggle("hide")));
+                    console.log(order);
+                    if (order == "Відміна") {
+                        order = "Очікує підтвердження";
+                        popup.classList.remove("clear-order");
+                    } else if (order == "Очікує підтвердження") {
+                        order = "Відміна";
+                        popup.classList.add("clear-order");
+                    } else order = "Очікує підтвердження";
+                    if (order == "Підтверджено") {
+                        btns.forEach((btn => btn.classList.add("hide")));
+                        popup.classList.remove("clear-order");
+                        popup.classList.add("confirmed");
+                    }
+                    writeUserData(`users/${userID}/Корзина/${name}/`, `Замовлення`, order);
+                }));
+            }));
         }
         function removeFromBasket(id, name, del = true) {
             const prod = document.querySelector(`#${id}`);
             const buyBtn = document.querySelector(`#${id.split("b-")[1]} .card__buy-btn`);
             if (del) writeUserData(`users/${userID}/Корзина/`, `${name}`, null);
-            let basketBntCount = +document.querySelector(".header__icon-btn_busket").getAttribute("count");
-            updateBusketCount(basketBntCount - 1);
             if (buyBtn) buyBtn.removeAttribute("disabled");
-            busketDelBtn = document.querySelectorAll(`#${id} .popup-basket__del-btn`);
+            busketDelBtn = document.querySelectorAll(`.popup-basket__del-btn`);
+            countInp = document.querySelectorAll(`.popup-basket__count`);
             prod.remove();
         }
         const loginForm = document.querySelector(".popup-login__form");
@@ -4525,46 +4567,44 @@
         const starCountRef = firebase.database().ref(`/`);
         starCountRef.on("value", (snapshot => {
             const data = snapshot.val();
-            if (data.users) {
-                const user = data.users[userID];
-                if (user) {
-                    if (user["Контактні дані"]["Ім'я користувача"] == userID) isLogin = true;
-                    if (isLogin) logined(true); else logined(false);
-                    if (user["Корзина"]) {
-                        updateBusketCount(Object.keys(user["Корзина"]).length);
-                        for (const key in user["Корзина"]) if (Object.hasOwnProperty.call(user["Корзина"], key)) {
-                            const product = user["Корзина"][key];
-                            const imgUrl = product["Фото товару"];
-                            const name = product["Найменування товару"];
-                            const description = product["Опис товару"];
-                            const price = product["Ціна"].split(" ")[0];
-                            const count = product["Кількість"].split(" ")[0];
-                            addToBasket(product.id, imgUrl, name, description, price, count);
-                            const orderBtn = document.querySelector(`#${product.id} .popup-basket__btn`);
-                            orderBtn.addEventListener("click", (() => {
-                                modules_flsModules.popup.close("#popup-basket");
-                                writeUserData(`users/${userID}/Корзина/${name}/`, `Замовлення`, `Очікує підтвердження`);
-                                successfull(true);
-                            }));
-                            const buyBtn = document.querySelector(`#${product.id.split("b-")[1]} .card__buy-btn`);
-                            if (buyBtn) buyBtn.setAttribute("disabled", null);
-                        }
+            if (userID !== null) {
+                if (data.users) {
+                    const user = data.users[userID];
+                    if (user) {
+                        if (user["Контактні дані"]["Ім'я користувача"] == userID) isLogin = true;
+                        if (isLogin) logined(true); else logined(false);
+                        if (user["Корзина"]) for (const key in user["Корзина"]) {
+                            if (Object.hasOwnProperty.call(user["Корзина"], key)) {
+                                const product = user["Корзина"][key];
+                                const imgUrl = product["Фото товару"];
+                                const name = product["Найменування товару"];
+                                const description = product["Опис товару"];
+                                const count = product["Кількість"].split(" ")[0];
+                                const price = product["Ціна"].split(" ")[0];
+                                const order = product["Замовлення"];
+                                addToBasket(product.id, imgUrl, name, description, price, count, order);
+                                const buyBtn = document.querySelector(`#${product.id.split("b-")[1]} .card__buy-btn`);
+                                if (buyBtn) buyBtn.setAttribute("disabled", null);
+                                updateBusketCount(Object.keys(user["Корзина"]).length);
+                            }
+                            orderBtns = document.querySelectorAll(`.popup-basket__btn`);
+                            busketDelBtn = document.querySelectorAll(`.popup-basket__del-btn`);
+                            countInp = document.querySelectorAll(`.popup-basket__count`);
+                        } else updateBusketCount(0);
                     }
                 }
-            }
-            const subscribeEmail = document.querySelectorAll(".subscribe-email");
-            const subscribeButton = document.querySelectorAll(".subscribe-btn");
-            const ansubscribeButton = document.querySelectorAll(".ansubscribe-btn");
-            if (data.subscribers) {
-                if (data.subscribers[userID]) {
+                const subscribeEmail = document.querySelectorAll(".subscribe-email");
+                const subscribeButton = document.querySelectorAll(".subscribe-btn");
+                const ansubscribeButton = document.querySelectorAll(".ansubscribe-btn");
+                if (data.subscribers) if (data.subscribers[userID]) {
                     subscribeEmail.forEach((email => email.setAttribute("disabled", null)));
                     subscribeButton.forEach((btn => btn.setAttribute("disabled", null)));
                     ansubscribeButton.forEach((btn => btn.removeAttribute("disabled", null)));
+                } else {
+                    subscribeEmail.forEach((email => email.removeAttribute("disabled", null)));
+                    subscribeButton.forEach((btn => btn.removeAttribute("disabled", null)));
+                    ansubscribeButton.forEach((btn => btn.setAttribute("disabled", null)));
                 }
-            } else {
-                subscribeEmail.forEach((email => email.removeAttribute("disabled", null)));
-                subscribeButton.forEach((btn => btn.removeAttribute("disabled", null)));
-                ansubscribeButton.forEach((btn => btn.setAttribute("disabled", null)));
             }
         }));
         const subscribeForms = document.querySelectorAll(".subscribe-form");
@@ -4608,6 +4648,9 @@
                 setTimeout((() => {
                     modules_flsModules.popup.close("#popup-contact");
                 }), 1e3);
+                setTimeout((() => {
+                    location.reload();
+                }), 3e3);
             }));
         }));
         function productsGruoped() {
@@ -4634,7 +4677,6 @@
                         g++;
                     }
                 }
-                console.log(cardsGroup);
                 cardsGroup.forEach((i => {
                     const group = document.createElement("div");
                     group.className = "catalog__cards-group";
@@ -4695,18 +4737,18 @@
         }
         window.addEventListener("DOMContentLoaded", (function() {
             [].forEach.call(document.querySelectorAll(".input-tel"), (function(input) {
-                var keyCode;
+                let keyCode;
                 function mask(event) {
                     event.keyCode && (keyCode = event.keyCode);
-                    var pos = this.selectionStart;
+                    let pos = this.selectionStart;
                     if (pos < 3) event.preventDefault();
-                    var matrix = "+380 (__) ___ ____", i = 0, val = this.value.replace(/\D/g, ""), new_value = matrix.replace(/[_\d]/g, (a => i < val.length ? val.charAt(i++) : a));
+                    let matrix = "+380 (__) ___ ____", i = 0, val = this.value.replace(/\D/g, ""), new_value = matrix.replace(/[_\d]/g, (a => i < val.length ? val.charAt(i++) : a));
                     i = new_value.indexOf("_");
                     if (i != -1) {
                         i < 5 && (i = 3);
                         new_value = new_value.slice(0, i);
                     }
-                    var reg = matrix.substr(0, this.value.length).replace(/_+/g, (a => "\\d{1," + a.length + "}")).replace(/[+()]/g, "\\$&");
+                    let reg = matrix.substr(0, this.value.length).replace(/_+/g, (a => "\\d{1," + a.length + "}")).replace(/[+()]/g, "\\$&");
                     reg = new RegExp("^" + reg + "$");
                     if (!reg.test(this.value) || this.value.length < 5 || keyCode > 47 && keyCode < 58) this.value = new_value;
                     if (event.type == "blur" && this.value.length < 5) this.value = "";
@@ -4721,21 +4763,27 @@
         if (inStock) inStock.forEach((card => {
             card.classList.add("in-stock");
         }));
-        function setFilter(opt, filtred = true) {
+        function setFilter(filters) {
             const elemsAll = document.querySelectorAll(`.catalog__card`);
-            const elems = document.querySelectorAll(`.${opt}`);
-            if (filtred) {
-                elemsAll.forEach((elem => elem.classList.add("hide")));
-                elems.forEach((elem => {
-                    elem.classList.remove("hide");
-                }));
-            } else elemsAll.forEach((elem => elem.classList.remove("hide")));
+            elemsAll.forEach((elem => elem.classList.remove("hide")));
+            filters.forEach((filt => {
+                const elems = document.querySelectorAll(`:not(.${filt})`);
+                elems.forEach((elem => elem.classList.add("hide")));
+            }));
             productsGruoped();
         }
+        let filters = [];
         const filter = document.querySelectorAll(".catalog__side-menu input");
         if (filter) filter.forEach((filt => {
             filt.addEventListener("click", (e => {
-                if (filt.checked) setFilter(filt.id); else setFilter(filt.id, false);
+                if (filt.checked) {
+                    filters.push(filt.id);
+                    setFilter(filters);
+                } else {
+                    filters = filters.filter((i => i != filt.id));
+                    setFilter(filters);
+                }
+                console.log(filters);
             }));
         }));
         window["FLS"] = true;
